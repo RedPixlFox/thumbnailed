@@ -3,11 +3,9 @@ use std::{
     ffi::OsStr,
     fs::{ self, DirEntry },
     path::Path,
-    rc::Rc,
     sync::mpsc::Sender,
     thread::JoinHandle,
     time::{ Duration, Instant },
-    vec,
 };
 
 use crate::*;
