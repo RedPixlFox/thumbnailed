@@ -1,0 +1,28 @@
+[package]
+name = "thumbnailed"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+keywords = ["caching", "image-thumbnails", "explorer"]
+publish = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eframe = { version = "0.26.2", features = [
+   "default",
+   "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
+   "persistence",  # Enable restoring app state when restarting the app.
+] }
+log = "0.4"
+egui_extras = { version = "0.26.2", features = ["all_loaders"] }
+env_logger = { version = "0.11.3" }
+image = { version = "0.25.0", features = ["png"] }
+serde = { version = "1.0.197", features = ["derive", "serde_derive"] }
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
