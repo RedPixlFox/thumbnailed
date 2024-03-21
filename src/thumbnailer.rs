@@ -264,7 +264,7 @@ pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToA
 
                 log::info!("[{thread_name}]: searching...");
                 match search_and_send(&order.path, file_tx) {
-                    Ok(_) => todo!(),
+                    Ok(_) => (),
                     Err(err) =>
                         log::error!("failed to read directory (path: \"{}\"; {err})", order.path.display()),
                 }
