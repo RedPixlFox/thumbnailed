@@ -14,7 +14,6 @@ publish = true
 eframe = { version = "0.26.2", features = [
    "default",
    "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
-   "persistence",  # Enable restoring app state when restarting the app.
 ] }
 log = "0.4"
 egui_extras = { version = "0.26.2", features = ["all_loaders"] }

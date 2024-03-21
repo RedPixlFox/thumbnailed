@@ -231,11 +231,7 @@ pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToA
 
     // local constants
     let mut handles = Vec::<JoinHandle<()>>::new();
-
-    match fs::remove_dir_all(&order.target_path) {
-        Ok(_) => (),
-        Err(err) => log::trace!("{err}"),
-    }
+    
     fs::create_dir_all(&order.target_path).unwrap();
 
     let (file_tx, file_rx) = mpsc::channel::<PathBuf>(); // searcher -> filter / distributor

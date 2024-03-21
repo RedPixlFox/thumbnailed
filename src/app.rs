@@ -1,27 +1,35 @@
-use std::{ fs, num::NonZeroUsize, path::PathBuf, process::Command, thread };
+use std::{
+    fs,
+    num::NonZeroUsize,
+    os::windows::fs::MetadataExt,
+    path::PathBuf,
+    process::Command,
+    thread,
+    time::{Duration, Instant},
+};
 
 use eframe::egui as egui;
 
 use crate::*;
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct ThumbnailedApp {
     pub thumbnails: Vec<ThumbnailPaths>,
     pub load_data: Option<LoadData>,
+
     pub thumbnail_path: PathBuf,
 
     pub load_dialouge_data: LoadDialougeData,
     pub show_load_dialouge: bool,
 
-    #[serde(skip)]
-    pub thumbnailer: Option<thumbnailer::SpawnedThumbnailer>,
-
-    #[serde(skip)]
     pub allowed_to_close: bool,
-
-    #[serde(skip)]
     pub show_close_dialouge: bool,
+
+    pub update_gallery: bool,
+    pub gallery_cache_size: StorageSize,
+    pub total_cache_size: StorageSize,
+    pub last_cache_size_update: Instant,
+
+    pub thumbnailer: Option<thumbnailer::SpawnedThumbnailer>,
 }
 
 impl ThumbnailedApp {
@@ -32,10 +40,7 @@ impl ThumbnailedApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
 
-        let mut app: Self = match cc.storage {
-            Some(storage) => eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default(),
-            None => Default::default(),
-        };
+        let mut app: Self = Default::default();
 
         // spawn
         match thumbnailer::spawn_thumbnailer_thread() {
@@ -47,6 +52,29 @@ impl ThumbnailedApp {
 
         return app;
     }
+
+    pub fn update_gallery_cache_size(&mut self) {
+        let mut size = 0;
+
+        for thumbnail_data in &self.thumbnails {
+            match fs::metadata(&thumbnail_data.thumbnail) {
+                Ok(metadata) => {
+                    size += metadata.file_size();
+                }
+                Err(_) => (),
+            }
+        }
+
+        self.gallery_cache_size = StorageSize::new(size);
+    }
+
+    pub fn update_total_cache_size(&mut self) {
+        self.total_cache_size = StorageSize::from_dir(
+            self.thumbnail_path.clone()
+        ).unwrap_or_default();
+    }
+
+    const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(200);
 }
 
 impl Default for ThumbnailedApp {
@@ -65,16 +93,23 @@ impl Default for ThumbnailedApp {
             thumbnailer: None,
             allowed_to_close: false,
             show_close_dialouge: false,
+            update_gallery: true,
+            gallery_cache_size: StorageSize::new(0),
+            total_cache_size: StorageSize::new(0),
+            last_cache_size_update: Instant::now(),
         }
     }
 }
 
 impl eframe::App for ThumbnailedApp {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if Instant::now() - self.last_cache_size_update > Self::CACHE_SIZE_UPDATE_INTERVAL {
+            self.update_total_cache_size();
+            self.update_gallery_cache_size();
+            self.last_cache_size_update = Instant::now();
+        }
+
+
         if self.thumbnailer.is_none() {
             match thumbnailer::spawn_thumbnailer_thread() {
                 Ok(spwnd_thumbnailer) => {
@@ -84,31 +119,36 @@ impl eframe::App for ThumbnailedApp {
             }
         }
 
-        if let Some(thumbnailer) = &self.thumbnailer {
-            if let Ok(msg) = thumbnailer.receiver.try_recv() {
-                match msg {
-                    ThumbnailerToApp::CreatedThumbnail(data) => {
-                        self.thumbnails.push(data);
-                    }
-                    ThumbnailerToApp::Status(status) => {
-                        log::debug!("received status update from thumbnailer: {status:?}");
-                        match status {
-                            ThumbnailerStatus::Finished =>
-                                log::debug!("thumbnailer has finished creating thumbnails"),
-                            ThumbnailerStatus::Failed(err) => {
-                                match err {
-                                    Some(err) =>
-                                        log::error!("thumbnailer returned an error ({err})"),
-                                    None => log::error!("thumbnailer returned an unknown error"),
+        if self.update_gallery {
+            if let Some(thumbnailer) = &self.thumbnailer {
+                if let Ok(msg) = thumbnailer.receiver.try_recv() {
+                    match msg {
+                        ThumbnailerToApp::CreatedThumbnail(data) => {
+                            self.thumbnails.push(data);
+                        }
+                        ThumbnailerToApp::Status(status) => {
+                            log::debug!("received status update from thumbnailer: {status:?}");
+                            match status {
+                                ThumbnailerStatus::Finished =>
+                                    log::debug!("thumbnailer has finished creating thumbnails"),
+                                ThumbnailerStatus::Failed(err) => {
+                                    match err {
+                                        Some(err) =>
+                                            log::error!("thumbnailer returned an error ({err})"),
+                                        None =>
+                                            log::error!("thumbnailer returned an unknown error"),
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        self.thumbnails.sort_by(|a, b| { a.original.cmp(&b.original) });
+            self.thumbnails.sort_by(|a, b| { a.original.cmp(&b.original) });
+
+            self.update_gallery_cache_size();
+        }
 
         // top panel
         egui::TopBottomPanel::new(egui::panel::TopBottomSide::Top, "top_panel").show(ctx, |ui| {
@@ -142,8 +182,8 @@ impl eframe::App for ThumbnailedApp {
                                 self.thumbnailer = Some(spwnd_thumbnailer);
                             }
                             Err(err) => panic!("failed to spawn [thumbnailer]-thread ({err})"),
-                        };
-                        
+                        }
+
                         ui.close_menu();
                     }
 
@@ -161,9 +201,38 @@ impl eframe::App for ThumbnailedApp {
 
                         self.show_load_dialouge = true;
                     }
+
+                    if
+                        ui
+                            .button(
+                                format!(
+                                    "update gallery: {}",
+                                    self.update_gallery.to_string().to_ascii_uppercase()
+                                )
+                            )
+                            .clicked()
+                    {
+                        self.update_gallery = !self.update_gallery;
+                    }
                 })
             })
         });
+
+        // TODO: create bottom panel
+        egui::TopBottomPanel
+            ::new(egui::panel::TopBottomSide::Bottom, "bottom panel")
+            .show(ctx, |ui| {
+                egui::menu::bar(ui, |ui| {
+                    ui.label(format!("{} items", self.thumbnails.len()));
+
+                    // ui.add_space(4.0);
+                    ui.separator();
+                    // ui.add_space(4.0);
+
+                    ui.label(format!("cache: [{:.2} MB]", self.total_cache_size.in_megabytes()));
+                    // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
+                })
+            });
 
         // image view
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -218,6 +287,7 @@ impl eframe::App for ThumbnailedApp {
                 // do nothing - we will close
             } else {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+
                 self.show_close_dialouge = true;
             }
         }
@@ -325,5 +395,7 @@ impl eframe::App for ThumbnailedApp {
                     });
                 });
         }
+
+        ctx.request_repaint();
     }
 }
