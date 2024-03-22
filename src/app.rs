@@ -37,26 +37,6 @@ pub struct ThumbnailedApp {
 }
 
 impl ThumbnailedApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-
-        let mut app: Self = Default::default();
-
-        // spawn
-        match thumbnailer::spawn_thumbnailer_thread() {
-            Ok(spwnd_thumbnailer) => {
-                app.thumbnailer = Some(spwnd_thumbnailer);
-            }
-            Err(err) => panic!("failed to spawn [thumbnailer]-thread ({err})"),
-        }
-
-        return app;
-    }
-
     pub fn update_gallery_cache_size(&mut self) {
         let mut size = 0;
 
