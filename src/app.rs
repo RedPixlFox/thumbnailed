@@ -8,7 +8,7 @@ use std::{
     time::{ Duration, Instant },
 };
 
-use eframe::egui as egui;
+use eframe::egui::{ self as egui, Layout };
 
 use crate::*;
 
@@ -30,6 +30,8 @@ pub struct ThumbnailedApp {
     pub last_cache_size_update: Instant,
 
     pub show_path_on_hover: bool,
+
+    pub timing_info: Timings,
 
     pub thumbnailer: Option<thumbnailer::SpawnedThumbnailer>,
 }
@@ -100,12 +102,15 @@ impl Default for ThumbnailedApp {
             total_cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
+            timing_info: Timings::new(Duration::from_secs_f64(0.5)),
         }
     }
 }
 
 impl eframe::App for ThumbnailedApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.timing_info.frame_begin();
+
         if Instant::now() - self.last_cache_size_update > Self::CACHE_SIZE_UPDATE_INTERVAL {
             self.update_total_cache_size();
             self.update_gallery_cache_size();
@@ -156,8 +161,16 @@ impl eframe::App for ThumbnailedApp {
         egui::TopBottomPanel::new(egui::panel::TopBottomSide::Top, "top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu_button(ui, "Options", |ui| {
-                    ui.checkbox(&mut self.show_path_on_hover, format!("show path on hover"));
-                    ui.checkbox(&mut self.update_gallery, format!("update gallery"));
+                    if
+                        ui
+                            .checkbox(&mut self.show_path_on_hover, format!("show path on hover"))
+                            .clicked()
+                    {
+                        ui.close_menu();
+                    }
+                    if ui.checkbox(&mut self.update_gallery, format!("update gallery")).clicked() {
+                        ui.close_menu();
+                    }
 
                     if ui.button("clear cache").clicked() {
                         match fs::remove_dir_all(&self.thumbnail_path) {
@@ -223,14 +236,24 @@ impl eframe::App for ThumbnailedApp {
             ::new(egui::panel::TopBottomSide::Bottom, "bottom panel")
             .show(ctx, |ui| {
                 egui::menu::bar(ui, |ui| {
-                    ui.label(format!("{} items", self.thumbnails.len()));
+                    ui.with_layout(Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.label(format!("{} items", self.thumbnails.len()));
 
-                    // ui.add_space(4.0);
-                    ui.separator();
-                    // ui.add_space(4.0);
+                        ui.separator();
 
-                    ui.label(format!("cache: [{:.2} MB]", self.total_cache_size.in_megabytes()));
-                    // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
+                        ui.label(format!("cache: {:.2} MB", self.total_cache_size.in_megabytes()));
+
+                        // ui.separator();
+                        // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
+
+                        ui.separator();
+                    });
+
+                    ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(format!("avg ∆T: {:.3?}", self.timing_info.avg_delta));
+
+                        ui.separator();
+                    })
                 })
             });
 
@@ -245,29 +268,24 @@ impl eframe::App for ThumbnailedApp {
                                 None => (128, 128),
                             };
 
-                            if
-                                ui
-                                    .add_sized(
-                                        [max_x as f32, max_y as f32],
-                                        egui::Image
-                                            ::new(
-                                                egui::ImageSource::Uri(
-                                                    std::borrow::Cow::Borrowed(
-                                                        &format!("file://{thumb_path_str}")
-                                                    )
-                                                )
+                            let thumb_resp = ui.add_sized(
+                                [max_x as f32, max_y as f32],
+                                egui::Image
+                                    ::new(
+                                        egui::ImageSource::Uri(
+                                            std::borrow::Cow::Borrowed(
+                                                &format!("file://{thumb_path_str}")
                                             )
-                                            .sense(egui::Sense::click())
-                                            .max_size(egui::Vec2 {
-                                                x: max_x as f32,
-                                                y: max_y as f32,
-                                            })
+                                        )
                                     )
-                                    .on_hover_text_at_pointer(
-                                        format!("{}", thumbnail_paths.original.display())
-                                    )
-                                    .clicked()
-                            {
+                                    .sense(egui::Sense::click())
+                                    .max_size(egui::Vec2 {
+                                        x: max_x as f32,
+                                        y: max_y as f32,
+                                    })
+                            );
+
+                            if thumb_resp.clicked() {
                                 if let Some(orig_path_str) = thumbnail_paths.original.to_str() {
                                     #[cfg(target_os = "windows")]
                                     {
@@ -278,6 +296,12 @@ impl eframe::App for ThumbnailedApp {
                                             .unwrap();
                                     }
                                 }
+                            }
+
+                            if self.show_path_on_hover {
+                                thumb_resp.on_hover_text_at_pointer(
+                                    thumbnail_paths.original.to_str().unwrap_or("unknown")
+                                );
                             }
                         }
                     }

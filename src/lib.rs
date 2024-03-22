@@ -2,13 +2,16 @@ mod app;
 mod thumbnailer;
 
 use std::{
+    collections::VecDeque,
     error::Error,
     fs,
     num::NonZeroUsize,
+    ops::DivAssign,
     os::windows::fs::MetadataExt,
     path::{ Path, PathBuf },
     sync::mpsc,
     thread,
+    time::{ Duration, Instant },
 };
 
 pub use app::ThumbnailedApp;
@@ -144,5 +147,52 @@ impl StorageSize {
 impl Default for StorageSize {
     fn default() -> Self {
         Self { bytes: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Timings {
+    pub avg_delta: Duration,
+    pub last_delta: Duration,
+    last_durs: VecDeque<(Instant, Duration)>,
+    averaging_dur: Duration,
+}
+
+impl Timings {
+    pub fn new(averaging_duration: Duration) -> Self {
+        Self {
+            last_durs: VecDeque::new(),
+            averaging_dur: averaging_duration,
+            avg_delta: Duration::ZERO,
+            last_delta: Duration::ZERO,
+        }
+    }
+
+    pub fn frame_begin(&mut self) {
+        while
+            self.last_durs
+                .back()
+                .is_some_and(|frame_stats| { frame_stats.0.elapsed() > self.averaging_dur }) &&
+            self.last_durs.len() > 1
+        {
+            self.last_durs.pop_back();
+        }
+
+        // all valid values are here :)
+
+        self.last_delta = match self.last_durs.front() {
+            Some(last_data) => last_data.0.elapsed(),
+            None => Duration::ZERO,
+        };
+
+        self.last_durs.push_front((Instant::now(), self.last_delta));
+
+        self.avg_delta = {
+            self.last_durs
+                .iter()
+                .map(|elem| { elem.1 })
+                .sum::<Duration>()
+                .div_f64(self.last_durs.len() as f64)
+        };
     }
 }
