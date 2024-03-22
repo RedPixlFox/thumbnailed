@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
     process::Command,
     thread,
-    time::{Duration, Instant},
+    time::{ Duration, Instant },
 };
 
 use eframe::egui as egui;
@@ -28,6 +28,8 @@ pub struct ThumbnailedApp {
     pub gallery_cache_size: StorageSize,
     pub total_cache_size: StorageSize,
     pub last_cache_size_update: Instant,
+
+    pub show_path_on_hover: bool,
 
     pub thumbnailer: Option<thumbnailer::SpawnedThumbnailer>,
 }
@@ -97,6 +99,7 @@ impl Default for ThumbnailedApp {
             gallery_cache_size: StorageSize::new(0),
             total_cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
+            show_path_on_hover: true,
         }
     }
 }
@@ -108,7 +111,6 @@ impl eframe::App for ThumbnailedApp {
             self.update_gallery_cache_size();
             self.last_cache_size_update = Instant::now();
         }
-
 
         if self.thumbnailer.is_none() {
             match thumbnailer::spawn_thumbnailer_thread() {
@@ -154,7 +156,8 @@ impl eframe::App for ThumbnailedApp {
         egui::TopBottomPanel::new(egui::panel::TopBottomSide::Top, "top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu_button(ui, "Options", |ui| {
-                    egui::widgets::global_dark_light_mode_buttons(ui);
+                    ui.checkbox(&mut self.show_path_on_hover, format!("show path on hover"));
+                    ui.checkbox(&mut self.update_gallery, format!("update gallery"));
 
                     if ui.button("clear cache").clicked() {
                         match fs::remove_dir_all(&self.thumbnail_path) {
@@ -187,11 +190,21 @@ impl eframe::App for ThumbnailedApp {
                         ui.close_menu();
                     }
 
+                    ui.separator();
+
+                    egui::widgets::global_dark_light_mode_buttons(ui);
+
                     if ui.button("exit").clicked() {
                         ui.close_menu();
                         self.allowed_to_close = true;
                         self.show_close_dialouge = false;
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+
+                    // menu logic
+
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        ui.close_menu();
                     }
                 });
 
@@ -200,19 +213,6 @@ impl eframe::App for ThumbnailedApp {
                         // TODO: add logic and "load dialog"
 
                         self.show_load_dialouge = true;
-                    }
-
-                    if
-                        ui
-                            .button(
-                                format!(
-                                    "update gallery: {}",
-                                    self.update_gallery.to_string().to_ascii_uppercase()
-                                )
-                            )
-                            .clicked()
-                    {
-                        self.update_gallery = !self.update_gallery;
                     }
                 })
             })
@@ -262,6 +262,9 @@ impl eframe::App for ThumbnailedApp {
                                                 x: max_x as f32,
                                                 y: max_y as f32,
                                             })
+                                    )
+                                    .on_hover_text_at_pointer(
+                                        format!("{}", thumbnail_paths.original.display())
                                     )
                                     .clicked()
                             {
