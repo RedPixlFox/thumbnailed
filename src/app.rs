@@ -26,7 +26,7 @@ pub struct ThumbnailedApp {
 
     pub update_gallery: bool,
     // pub gallery_cache_size: StorageSize,
-    pub total_cache_size: StorageSize,
+    pub cache_size: StorageSize,
     pub last_cache_size_update: Instant,
 
     pub show_path_on_hover: bool,
@@ -52,13 +52,13 @@ impl ThumbnailedApp {
     //     self.gallery_cache_size = StorageSize::new(size);
     // }
 
-    pub fn update_total_cache_size(&mut self) {
-        self.total_cache_size = StorageSize::from_dir(
+    pub fn update_cache_size(&mut self) {
+        self.cache_size = StorageSize::from_dir(
             self.thumbnail_path.clone()
         ).unwrap_or_default();
     }
 
-    const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(200);
+    const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 }
 
 impl Default for ThumbnailedApp {
@@ -79,7 +79,7 @@ impl Default for ThumbnailedApp {
             // show_close_dialouge: false,
             update_gallery: true,
             // gallery_cache_size: StorageSize::new(0),
-            total_cache_size: StorageSize::new(0),
+            cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
             timing_info: Timings::new(Duration::from_secs_f64(0.5)),
@@ -94,7 +94,7 @@ impl eframe::App for ThumbnailedApp {
 
         // updating cache_size, if specified time has elapsed:
         if Instant::now() - self.last_cache_size_update > Self::CACHE_SIZE_UPDATE_INTERVAL {
-            self.update_total_cache_size();
+            self.update_cache_size();
             // self.update_gallery_cache_size();
             self.last_cache_size_update = Instant::now();
         }
@@ -221,7 +221,7 @@ impl eframe::App for ThumbnailedApp {
 
                     ui.separator();
 
-                    ui.label(format!("cache: {:.2} MB", self.total_cache_size.in_megabytes()));
+                    ui.label(format!("cache: {:.2} MB", self.cache_size.in_megabytes()));
 
                     // ui.separator();
                     // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
