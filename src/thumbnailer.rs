@@ -10,6 +10,7 @@ use std::{
 
 use crate::*;
 
+// please change this dirty code xD
 pub enum TimingData {
     SingleTime {
         name: String,
@@ -79,19 +80,20 @@ impl DirEntryData for DirEntry {
     }
 }
 
-pub trait FileExtension {
-    fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool;
-}
+// UNUSED
+// pub trait FileExtension {
+//     fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool;
+// }
 
-impl<P: AsRef<Path>> FileExtension for P {
-    fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool {
-        if let Some(ref extension) = self.as_ref().extension().and_then(OsStr::to_str) {
-            return extensions.iter().any(|x| x.as_ref().eq_ignore_ascii_case(extension));
-        }
+// impl<P: AsRef<Path>> FileExtension for P {
+//     fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool {
+//         if let Some(ref extension) = self.as_ref().extension().and_then(OsStr::to_str) {
+//             return extensions.iter().any(|x| x.as_ref().eq_ignore_ascii_case(extension));
+//         }
 
-        false
-    }
-}
+//         false
+//     }
+// }
 
 pub fn search_and_send<P>(path: P, sender: mpsc::Sender<PathBuf>) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>
@@ -223,15 +225,21 @@ impl SpawnedThumbnailer {
     }
 }
 
-pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToApp>, order_id: usize) {
-    let thread_name = String::from(thread::current().name().unwrap_or("thumbnailer-thread_{order_id}"));
+pub fn process_order(
+    order: LoadData,
+    thumb_data_tx: mpsc::Sender<ThumbnailerToApp>,
+    order_id: usize
+) {
+    let thread_name = String::from(
+        thread::current().name().unwrap_or("thumbnailer-thread_{order_id}")
+    );
     log::debug!("[{thread_name}]: spawned");
 
     let total_timer = Instant::now();
 
     // local constants
     let mut handles = Vec::<JoinHandle<()>>::new();
-    
+
     fs::create_dir_all(&order.target_path).unwrap();
 
     let (file_tx, file_rx) = mpsc::channel::<PathBuf>(); // searcher -> filter / distributor
@@ -262,7 +270,10 @@ pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToA
                 match search_and_send(&order.path, file_tx) {
                     Ok(_) => (),
                     Err(err) =>
-                        log::error!("failed to read directory (path: \"{}\"; {err})", order.path.display()),
+                        log::error!(
+                            "failed to read directory (path: \"{}\"; {err})",
+                            order.path.display()
+                        ),
                 }
                 match
                     timing_tx.send(
@@ -304,7 +315,9 @@ pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToA
 
         match
             builder.spawn(move || {
-                let thread_name = String::from(thread::current().name().unwrap_or(&format!("{order_id}-unknown")));
+                let thread_name = String::from(
+                    thread::current().name().unwrap_or(&format!("{order_id}-unknown"))
+                );
                 let timer_start = Instant::now();
 
                 let mut work_dur: Duration = Duration::new(0, 0);
@@ -338,9 +351,8 @@ pub fn process_order(order: LoadData, thumb_data_tx: mpsc::Sender<ThumbnailerToA
                                             log::warn!(
                                                 "[{thread_name}]: failed to send ThumbnailPaths on channel ({err})"
                                             );
-                                            break 'recv_loop; 
+                                            break 'recv_loop;
                                         }
-                                            
                                     };
                                 }
                                 Err(err) => {
