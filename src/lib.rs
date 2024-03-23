@@ -7,12 +7,13 @@ use std::{
     fs,
     num::NonZeroUsize,
     os::windows::fs::MetadataExt,
-    path::PathBuf,
+    path::{ Path, PathBuf },
     sync::mpsc,
     thread,
     time::{ Duration, Instant },
 };
 
+use hashbrown::HashMap as HBHashMap;
 pub use app::ThumbnailedApp;
 
 #[derive(Debug)]
@@ -232,5 +233,15 @@ impl Timings {
                 .sum::<Duration>()
                 .div_f64(self.last_durs.len() as f64)
         };
+    }
+}
+
+pub trait LoadFromPath {
+    fn load_from_path<P>(path: P) -> Result<Self, Box<dyn Error>> where P: AsRef<Path>, Self: Sized;
+}
+
+impl LoadFromPath for image::DynamicImage {
+    fn load_from_path<P>(path: P) -> Result<Self, Box<dyn Error>> where P: AsRef<Path> {
+        Ok(image::io::Reader::open(&path)?.decode()?)
     }
 }

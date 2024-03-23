@@ -7,12 +7,14 @@ use std::{
     time::{ Duration, Instant },
 };
 
-use eframe::egui::{ self as egui, Layout, panel::TopBottomSide };
+use eframe::egui::{ self as egui, panel::TopBottomSide, Layout };
 
 use crate::*;
 
 pub struct ThumbnailedApp {
-    pub thumbnails: Vec<ThumbnailPaths>,
+    pub thumbnail_paths: Vec<ThumbnailPaths>,
+    pub cached_thumbnails: HBHashMap<PathBuf, Option<egui::TextureHandle>>,
+
     pub load_data: Option<LoadData>,
 
     pub thumbnail_path: PathBuf,
@@ -61,7 +63,7 @@ impl ThumbnailedApp {
 impl Default for ThumbnailedApp {
     fn default() -> Self {
         Self {
-            thumbnails: Vec::new(),
+            thumbnail_paths: Vec::new(),
             load_data: None,
             thumbnail_path: PathBuf::from("tmp/thumbs-cache"),
             load_dialouge_data: LoadDialougeData {
@@ -79,7 +81,8 @@ impl Default for ThumbnailedApp {
             cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
-            timing_info: Timings::new(Duration::from_secs_f64(0.5)),
+            timing_info: Timings::new(Duration::from_secs_f64(1.0)),
+            cached_thumbnails: HBHashMap::new(),
         }
     }
 }
@@ -91,7 +94,7 @@ impl eframe::App for ThumbnailedApp {
 
         // updating cache_size, if specified time has elapsed:
         if Instant::now() - self.last_cache_size_update > Self::CACHE_SIZE_UPDATE_INTERVAL {
-            self.update_cache_size();
+            // self.update_cache_size(); // TODO: FIX PERFORMANCE
             // self.update_gallery_cache_size();
             self.last_cache_size_update = Instant::now();
         }
@@ -112,7 +115,7 @@ impl eframe::App for ThumbnailedApp {
                 if let Ok(msg) = thumbnailer.receiver.try_recv() {
                     match msg {
                         ThumbnailerToApp::CreatedThumbnail(data) => {
-                            self.thumbnails.push(data);
+                            self.thumbnail_paths.push(data);
                         }
                         ThumbnailerToApp::Status(status) => {
                             log::debug!("received status update from thumbnailer: {status:?}");
@@ -134,7 +137,7 @@ impl eframe::App for ThumbnailedApp {
                 }
             }
 
-            self.thumbnails.sort_by(|a, b| { a.original.cmp(&b.original) });
+            self.thumbnail_paths.sort_by(|a, b| { a.original.cmp(&b.original) });
         }
 
         // TopPanel:
@@ -163,7 +166,8 @@ impl eframe::App for ThumbnailedApp {
                             Err(_) => log::debug!("failed to create cache-directory"),
                         }
 
-                        self.thumbnails.clear();
+                        self.thumbnail_paths.clear();
+                        self.cached_thumbnails.clear();
 
                         ui.close_menu();
                     }
@@ -215,7 +219,7 @@ impl eframe::App for ThumbnailedApp {
         egui::TopBottomPanel::new(TopBottomSide::Bottom, "BottomPanel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(egui::Align::Center), |ui| {
-                    ui.label(format!("{} items", self.thumbnails.len()));
+                    ui.label(format!("{} items", self.thumbnail_paths.len()));
 
                     ui.separator();
 
@@ -239,53 +243,136 @@ impl eframe::App for ThumbnailedApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for thumbnail_paths in self.thumbnails.iter() {
+                    // iter over created thumbnails (thumb_path, original_path):
+                    for thumbnail_paths in self.thumbnail_paths.iter() {
                         if let Some(thumb_path_str) = thumbnail_paths.thumbnail.to_str() {
                             let (max_x, max_y) = match &self.load_data {
                                 Some(load_data) => (load_data.max_x, load_data.max_y),
                                 None => (128, 128),
                             };
 
-                            let thumb_resp = ui.add_sized(
-                                [max_x as f32, max_y as f32],
-                                egui::Image
-                                    ::new(
-                                        egui::ImageSource::Uri(
-                                            std::borrow::Cow::Borrowed(
-                                                &format!("file://{thumb_path_str}")
-                                            )
-                                        )
-                                    )
-                                    .sense(egui::Sense::click())
-                                    .max_size(egui::Vec2 {
-                                        x: max_x as f32,
-                                        y: max_y as f32,
-                                    })
-                            );
+                            // OLD VARIANT:
+                            // let thumb_resp = ui.add_sized(
+                            //     [max_x as f32, max_y as f32],
+                            //     egui::Image
+                            //         ::new(
+                            //             egui::ImageSource::Uri(
+                            //                 std::borrow::Cow::Borrowed(
+                            //                     &format!("file://{thumb_path_str}")
+                            //                 )
+                            //             )
+                            //         )
+                            //         .sense(egui::Sense::click())
+                            //         .max_size(egui::Vec2 {
+                            //             x: max_x as f32,
+                            //             y: max_y as f32,
+                            //         })
+                            // );
 
-                            if thumb_resp.clicked() {
-                                if let Some(orig_path_str) = thumbnail_paths.original.to_str() {
-                                    #[cfg(target_os = "windows")]
+                            if self.cached_thumbnails.get(&thumbnail_paths.thumbnail).is_none() {
+                                let texture: Option<egui::TextureHandle> = {
+                                    match
+                                        image::DynamicImage::load_from_path(
+                                            &thumbnail_paths.thumbnail
+                                        )
                                     {
-                                        Command::new("explorer")
-                                            .arg("/select,")
-                                            .arg(orig_path_str)
-                                            .spawn()
-                                            .unwrap();
+                                        Ok(image) => {
+                                            let image_buffer = image.to_rgba8();
+                                            let size = (
+                                                image.width() as usize,
+                                                image.height() as usize,
+                                            );
+                                            let pixels = image_buffer.into_vec();
+                                            assert_eq!(size.0 * size.1 * 4, pixels.len());
+                                            Some(
+                                                ctx.load_texture(
+                                                    thumb_path_str,
+                                                    egui::ColorImage::from_rgba_unmultiplied(
+                                                        [size.0, size.1],
+                                                        &pixels
+                                                    ),
+                                                    Default::default()
+                                                )
+                                            )
+                                        }
+                                        Err(err) => {
+                                            log::warn!("failed to read/decode thumbnail {err}");
+                                            None
+                                        }
                                     }
-                                }
+                                };
+                                self.cached_thumbnails.insert(
+                                    thumbnail_paths.thumbnail.clone(),
+                                    texture
+                                );
                             }
 
-                            if self.show_path_on_hover {
-                                thumb_resp.on_hover_text_at_pointer(
-                                    thumbnail_paths.original.to_str().unwrap_or("unknown")
-                                );
+                            if
+                                let Some(thumb_option) = self.cached_thumbnails.get(
+                                    &thumbnail_paths.thumbnail
+                                )
+                            {
+                                match thumb_option {
+                                    Some(texture_handle) => {
+                                        let thumb_resp = ui.add_sized(
+                                            [max_x as f32, max_y as f32],
+                                            egui::Image
+                                                ::new((
+                                                    texture_handle.id(),
+                                                    texture_handle.size_vec2(),
+                                                ))
+                                                .sense(egui::Sense::click())
+                                            // .max_size(egui::Vec2 {
+                                            //     x: max_x as f32,
+                                            //     y: max_y as f32,
+                                            // })
+                                        );
+
+                                        if thumb_resp.clicked() {
+                                            if
+                                                let Some(orig_path_str) =
+                                                    thumbnail_paths.original.to_str()
+                                            {
+                                                #[cfg(target_os = "windows")]
+                                                {
+                                                    Command::new("explorer")
+                                                        .arg("/select,")
+                                                        .arg(orig_path_str)
+                                                        .spawn()
+                                                        .unwrap();
+                                                }
+                                            }
+                                        }
+
+                                        if self.show_path_on_hover {
+                                            thumb_resp.on_hover_text_at_pointer(
+                                                thumbnail_paths.original
+                                                    .to_str()
+                                                    .unwrap_or("unknown")
+                                            );
+                                        }
+                                    }
+                                    None => {
+                                        ui.add_sized(
+                                            [max_x as f32, max_y as f32],
+                                            egui::Label::new("FAILED TO LOAD")
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
                 });
             });
         });
+
+        egui::Window
+            ::new("texture-ui")
+            .collapsible(true)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ctx.texture_ui(ui);
+            });
 
         // LoadDialouge:
         if self.show_load_dialouge {
@@ -402,6 +489,10 @@ impl eframe::App for ThumbnailedApp {
             //
             //     // self.show_close_dialouge = true;
             // }
+
+            for (_, texture_handle) in self.cached_thumbnails.iter_mut() {
+                texture_handle.take();
+            }
 
             if let Some(thumbnailer) = &mut self.thumbnailer {
                 thumbnailer.send(AppToThumbnailer::KillCmd).unwrap();

@@ -3314,6 +3314,7 @@ dependencies = [
  "eframe",
  "egui_extras",
  "env_logger",
+ "hashbrown",
  "image 0.25.0",
  "log",
  "serde",
