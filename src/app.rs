@@ -295,17 +295,20 @@ impl eframe::App for ThumbnailedApp {
                                                 image.height() as usize,
                                             );
                                             let pixels = image_buffer.into_vec();
-                                            assert_eq!(size.0 * size.1 * 4, pixels.len());
-                                            Some(
-                                                ctx.load_texture(
-                                                    thumb_path_str,
-                                                    egui::ColorImage::from_rgba_unmultiplied(
-                                                        [size.0, size.1],
-                                                        &pixels
-                                                    ),
-                                                    Default::default()
+                                            if size.0 * size.1 * 4 == pixels.len() {
+                                                Some(
+                                                    ctx.load_texture(
+                                                        thumb_path_str,
+                                                        egui::ColorImage::from_rgba_unmultiplied(
+                                                            [size.0, size.1],
+                                                            &pixels
+                                                        ),
+                                                        Default::default()
+                                                    )
                                                 )
-                                            )
+                                            } else {
+                                                None
+                                            }
                                         }
                                         Err(err) => {
                                             log::warn!("failed to read/decode thumbnail ({err})");
@@ -411,13 +414,16 @@ impl eframe::App for ThumbnailedApp {
                         ui.text_edit_singleline(&mut self.load_dialouge_data.path);
                     });
 
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("thumbnail size: ");
-                        ui.add(
-                            egui::DragValue
-                                ::new(&mut self.load_dialouge_data.max_x)
-                                .clamp_range(32..=256)
-                        );
+                        ui.vertical(|ui| {
+                            ui.label("max-x: ");
+                            ui.add(
+                                egui::DragValue
+                                    ::new(&mut self.load_dialouge_data.max_x)
+                                    .clamp_range(32..=256)
+                            );
+                        });
                     });
 
                     ui.horizontal(|ui| {
