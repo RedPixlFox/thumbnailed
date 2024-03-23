@@ -1,6 +1,6 @@
 use thumbnailed::ThumbnailedApp;
 
-const LOG_LEVEL: &str = "debug";
+const LOG_LEVEL: &str = "info";
 
 fn init_logger() {
     let env = env_logger::Env

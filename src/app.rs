@@ -411,8 +411,8 @@ impl eframe::App for ThumbnailedApp {
                         ui.text_edit_singleline(&mut self.load_dialouge_data.path);
                     });
 
-                    ui.vertical(|ui| {
-                        ui.label("thumbnail size");
+                    ui.horizontal(|ui| {
+                        ui.label("thumbnail size: ");
                         ui.add(
                             egui::DragValue
                                 ::new(&mut self.load_dialouge_data.max_x)
