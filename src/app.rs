@@ -127,6 +127,7 @@ impl eframe::App for ThumbnailedApp {
                                             log::error!("thumbnailer returned an unknown error"),
                                     }
                                 }
+                                ThumbnailerStatus::ProgressUpdate(_) => todo!(),
                             }
                         }
                     }

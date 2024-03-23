@@ -35,9 +35,41 @@ pub struct ThumbnailPaths {
     pub original: PathBuf,
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Progress<T> {
+    pub maximum: T,
+    pub progression: T,
+}
+
+impl<T> Progress<T> {
+    pub fn new(maximum: T, progression: T) -> Self {
+        Self { maximum, progression }
+    }
+}
+
+impl<T> Progress<T> where f64: From<T> {
+    pub fn as_percent(self) -> f64 {
+        f64::from(self.progression) / f64::from(self.maximum)
+    }
+}
+
+impl<T> Progress<T> where T: Ord {
+    pub fn is_completed(&self) -> bool {
+        !(self.progression < self.maximum)
+    }
+}
+
+impl<T> Progress<T> where T: Copy + Ord {
+    /// won't go over maximum
+    pub fn set_progress_capped(&mut self, progression: T) {
+        self.progression = progression.min(self.maximum);
+    }
+}
+
 #[derive(Debug)]
 pub enum ThumbnailerStatus {
     Finished,
+    ProgressUpdate(Progress<usize>),
     Failed(Option<Box<dyn Error>>),
 }
 
