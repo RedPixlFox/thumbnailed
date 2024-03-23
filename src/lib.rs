@@ -83,19 +83,24 @@ impl StorageSize {
         self.bytes
     }
 
-    pub fn in_kilobytes(&self) -> f64 {
+    /// plz use self.get_bytes :)
+    pub fn as_bytes(&self) -> u64 {
+        self.get_bytes()
+    }
+
+    pub fn as_kilobytes(&self) -> f64 {
         (self.bytes as f64) * 0.001
     }
 
-    pub fn in_megabytes(&self) -> f64 {
+    pub fn as_megabytes(&self) -> f64 {
         (self.bytes as f64) * 0.000001
     }
 
-    pub fn in_gigabytes(&self) -> f64 {
+    pub fn as_gigabytes(&self) -> f64 {
         (self.bytes as f64) * 0.000000001
     }
 
-    pub fn in_terabytes(&self) -> f64 {
+    pub fn as_terabytes(&self) -> f64 {
         (self.bytes as f64) * 0.000000000001
     }
 

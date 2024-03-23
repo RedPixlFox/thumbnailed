@@ -1,7 +1,6 @@
 use std::{
     fs,
     num::NonZeroUsize,
-    os::windows::fs::MetadataExt,
     path::PathBuf,
     process::Command,
     thread,
@@ -53,9 +52,7 @@ impl ThumbnailedApp {
     // }
 
     pub fn update_cache_size(&mut self) {
-        self.cache_size = StorageSize::from_dir(
-            self.thumbnail_path.clone()
-        ).unwrap_or_default();
+        self.cache_size = StorageSize::from_dir(self.thumbnail_path.clone()).unwrap_or_default();
     }
 
     const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
@@ -221,7 +218,7 @@ impl eframe::App for ThumbnailedApp {
 
                     ui.separator();
 
-                    ui.label(format!("cache: {:.2} MB", self.cache_size.in_megabytes()));
+                    ui.label(format!("cache: {:.2} MB", self.cache_size.as_megabytes()));
 
                     // ui.separator();
                     // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
