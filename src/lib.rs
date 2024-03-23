@@ -35,6 +35,8 @@ pub struct ThumbnailPaths {
     pub original: PathBuf,
 }
 
+// preparation for planned ProgressBar
+#[warn(deprecated)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Progress<T> {
     pub maximum: T,
