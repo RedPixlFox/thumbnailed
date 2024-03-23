@@ -416,7 +416,7 @@ impl eframe::App for ThumbnailedApp {
 
                     ui.vertical(|ui| {
                         ui.label("thumbnail size: ");
-                        ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
                             ui.label("max-x: ");
                             ui.add(
                                 egui::DragValue
