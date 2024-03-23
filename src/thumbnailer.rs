@@ -95,6 +95,7 @@ impl DirEntryData for DirEntry {
 //     }
 // }
 
+#[allow(clippy::panic_in_result_fn)]
 pub fn search_and_send<P>(path: P, sender: mpsc::Sender<PathBuf>) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>
 {
@@ -141,22 +142,33 @@ pub fn search_and_send<P>(path: P, sender: mpsc::Sender<PathBuf>) -> Result<(), 
     Ok(())
 }
 
+#[allow(clippy::panic_in_result_fn)]
 pub fn generate_thumbnail_from_image(
     path: PathBuf,
     max_x: u32,
     max_y: u32
 ) -> Result<image::DynamicImage, MyErrs> {
-    let reader = image::io::Reader::open(&path)?;
+    let reader = match panic::catch_unwind(|| image::io::Reader::open(&path)) {
+        Ok(ok) => ok?,
+        Err(_) => {
+            return Err(MyErrs::from_str("OpenError"));
+        }
+    };
 
     let dyn_image = match
         panic::catch_unwind(|| -> image::ImageResult<image::DynamicImage> { reader.decode() })
     {
         Ok(ok) => ok?,
         Err(_) => {
-            return Err(MyErrs::from_str(""));
+            return Err(MyErrs::from_str("DecodeError"));
         }
     };
-    let mut thumbnail = dyn_image.thumbnail(max_x, max_y);
+    let mut thumbnail = match panic::catch_unwind(|| dyn_image.thumbnail(max_x, max_y)) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return Err(MyErrs::from_str("ThumbnailCreationError"));
+        }
+    };
 
     thumbnail = match thumbnail.color() {
         image::ColorType::L16 => image::DynamicImage::ImageLuma8(thumbnail.into_luma8()),
@@ -441,6 +453,9 @@ pub fn process_order(
                                             "[{thread_name}]: failed to send path on channel ({err}) -> channel will no longer be used :("
                                         );
                                         file_senders.remove(current_sender);
+                                        if file_senders.len() == 0 {
+                                            break 'recv_loop;
+                                        }
                                         if let Some(sender_0) = file_senders.get(0) {
                                             let _ = sender_0.send(err.0);
                                         }
