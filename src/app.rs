@@ -8,7 +8,7 @@ use std::{
     time::{ Duration, Instant },
 };
 
-use eframe::egui::{ self as egui, Layout };
+use eframe::egui::{ self as egui, Layout, panel::TopBottomSide };
 
 use crate::*;
 
@@ -21,11 +21,11 @@ pub struct ThumbnailedApp {
     pub load_dialouge_data: LoadDialougeData,
     pub show_load_dialouge: bool,
 
-    pub allowed_to_close: bool,
-    pub show_close_dialouge: bool,
+    // pub allowed_to_close: bool,
+    // pub show_close_dialouge: bool,
 
     pub update_gallery: bool,
-    pub gallery_cache_size: StorageSize,
+    // pub gallery_cache_size: StorageSize,
     pub total_cache_size: StorageSize,
     pub last_cache_size_update: Instant,
 
@@ -37,20 +37,20 @@ pub struct ThumbnailedApp {
 }
 
 impl ThumbnailedApp {
-    pub fn update_gallery_cache_size(&mut self) {
-        let mut size = 0;
-
-        for thumbnail_data in &self.thumbnails {
-            match fs::metadata(&thumbnail_data.thumbnail) {
-                Ok(metadata) => {
-                    size += metadata.file_size();
-                }
-                Err(_) => (),
-            }
-        }
-
-        self.gallery_cache_size = StorageSize::new(size);
-    }
+    // pub fn update_gallery_cache_size(&mut self) {
+    //     let mut size = 0;
+    //
+    //     for thumbnail_data in &self.thumbnails {
+    //         match fs::metadata(&thumbnail_data.thumbnail) {
+    //             Ok(metadata) => {
+    //                 size += metadata.file_size();
+    //             }
+    //             Err(_) => (),
+    //         }
+    //     }
+    //
+    //     self.gallery_cache_size = StorageSize::new(size);
+    // }
 
     pub fn update_total_cache_size(&mut self) {
         self.total_cache_size = StorageSize::from_dir(
@@ -75,10 +75,10 @@ impl Default for ThumbnailedApp {
             },
             show_load_dialouge: false,
             thumbnailer: None,
-            allowed_to_close: false,
-            show_close_dialouge: false,
+            // allowed_to_close: false,
+            // show_close_dialouge: false,
             update_gallery: true,
-            gallery_cache_size: StorageSize::new(0),
+            // gallery_cache_size: StorageSize::new(0),
             total_cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
@@ -88,15 +88,18 @@ impl Default for ThumbnailedApp {
 }
 
 impl eframe::App for ThumbnailedApp {
+    // TICK:
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.timing_info.frame_begin();
 
+        // updating cache_size, if specified time has elapsed:
         if Instant::now() - self.last_cache_size_update > Self::CACHE_SIZE_UPDATE_INTERVAL {
             self.update_total_cache_size();
-            self.update_gallery_cache_size();
+            // self.update_gallery_cache_size();
             self.last_cache_size_update = Instant::now();
         }
 
+        // making sure, that there is a Thumbnailer:
         if self.thumbnailer.is_none() {
             match thumbnailer::spawn_thumbnailer_thread() {
                 Ok(spwnd_thumbnailer) => {
@@ -106,6 +109,7 @@ impl eframe::App for ThumbnailedApp {
             }
         }
 
+        // receiving created thumbnails:
         if self.update_gallery {
             if let Some(thumbnailer) = &self.thumbnailer {
                 if let Ok(msg) = thumbnailer.receiver.try_recv() {
@@ -133,12 +137,10 @@ impl eframe::App for ThumbnailedApp {
             }
 
             self.thumbnails.sort_by(|a, b| { a.original.cmp(&b.original) });
-
-            self.update_gallery_cache_size();
         }
 
-        // top panel
-        egui::TopBottomPanel::new(egui::panel::TopBottomSide::Top, "top_panel").show(ctx, |ui| {
+        // TopPanel:
+        egui::TopBottomPanel::new(TopBottomSide::Top, "TopPanel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 egui::menu::menu_button(ui, "Options", |ui| {
                     if
@@ -189,8 +191,8 @@ impl eframe::App for ThumbnailedApp {
 
                     if ui.button("exit").clicked() {
                         ui.close_menu();
-                        self.allowed_to_close = true;
-                        self.show_close_dialouge = false;
+                        // self.allowed_to_close = true;
+                        // self.show_close_dialouge = false;
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 
@@ -211,33 +213,31 @@ impl eframe::App for ThumbnailedApp {
             })
         });
 
-        // TODO: create bottom panel
-        egui::TopBottomPanel
-            ::new(egui::panel::TopBottomSide::Bottom, "bottom panel")
-            .show(ctx, |ui| {
-                egui::menu::bar(ui, |ui| {
-                    ui.with_layout(Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.label(format!("{} items", self.thumbnails.len()));
+        // BottomPanel:
+        egui::TopBottomPanel::new(TopBottomSide::Bottom, "BottomPanel").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.with_layout(Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.label(format!("{} items", self.thumbnails.len()));
 
-                        ui.separator();
+                    ui.separator();
 
-                        ui.label(format!("cache: {:.2} MB", self.total_cache_size.in_megabytes()));
+                    ui.label(format!("cache: {:.2} MB", self.total_cache_size.in_megabytes()));
 
-                        // ui.separator();
-                        // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
+                    // ui.separator();
+                    // ui.add(egui::ProgressBar::new(0.45).desired_height(12.0))
 
-                        ui.separator();
-                    });
+                    ui.separator();
+                });
 
-                    ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(format!("avg ∆T: {:.3?}", self.timing_info.avg_delta));
+                ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(format!("avg ∆T: {:.3?}", self.timing_info.avg_delta));
 
-                        ui.separator();
-                    })
+                    ui.separator();
                 })
-            });
+            })
+        });
 
-        // image view
+        // GalleryView
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
@@ -289,16 +289,7 @@ impl eframe::App for ThumbnailedApp {
             });
         });
 
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if self.allowed_to_close {
-                // do nothing - we will close
-            } else {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-
-                self.show_close_dialouge = true;
-            }
-        }
-
+        // LoadDialouge:
         if self.show_load_dialouge {
             egui::Window
                 ::new("LOAD")
@@ -378,29 +369,46 @@ impl eframe::App for ThumbnailedApp {
                 });
         }
 
-        if self.show_close_dialouge {
-            egui::Window
-                ::new("EXIT?")
-                .collapsible(false)
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        if ui.button("No").clicked() {
-                            self.show_close_dialouge = false;
-                            self.allowed_to_close = false;
-                        }
+        // [disabled] CloseDialouge:
+        // if self.show_close_dialouge {
+        //     egui::Window
+        //         ::new("EXIT?")
+        //         .collapsible(false)
+        //         .resizable(false)
+        //         .show(ctx, |ui| {
+        //             ui.horizontal(|ui| {
+        //                 if ui.button("No").clicked() {
+        //                     self.show_close_dialouge = false;
+        //                     self.allowed_to_close = false;
+        //                 }
+        //
+        //                 if ui.button("Yes").clicked() {
+        //                     self.show_close_dialouge = false;
+        //                     self.allowed_to_close = true;
+        //                     if let Some(thumbnailer) = &mut self.thumbnailer {
+        //                         thumbnailer.send(AppToThumbnailer::KillCmd).unwrap();
+        //                         thumbnailer.join().unwrap();
+        //                     }
+        //                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+        //                 }
+        //             });
+        //         });
+        // }
 
-                        if ui.button("Yes").clicked() {
-                            self.show_close_dialouge = false;
-                            self.allowed_to_close = true;
-                            if let Some(thumbnailer) = &mut self.thumbnailer {
-                                thumbnailer.send(AppToThumbnailer::KillCmd).unwrap();
-                                thumbnailer.join().unwrap();
-                            }
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                });
+        // OnClose:
+        if ctx.input(|i| i.viewport().close_requested()) {
+            // if self.allowed_to_close {
+            //     // do nothing - we will close
+            // } else {
+            //     ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            //
+            //     // self.show_close_dialouge = true;
+            // }
+
+            if let Some(thumbnailer) = &mut self.thumbnailer {
+                thumbnailer.send(AppToThumbnailer::KillCmd).unwrap();
+                thumbnailer.join().unwrap();
+            }
         }
 
         ctx.request_repaint();
