@@ -192,6 +192,8 @@ impl Default for StorageSize {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timings {
     pub avg_delta: Duration,
+    pub max_delta: Duration,
+    pub min_delta: Duration,
     pub last_delta: Duration,
     last_durs: VecDeque<(Instant, Duration)>,
     averaging_dur: Duration,
@@ -204,6 +206,8 @@ impl Timings {
             averaging_dur: averaging_duration,
             avg_delta: Duration::ZERO,
             last_delta: Duration::ZERO,
+            max_delta: Duration::ZERO,
+            min_delta: Duration::ZERO,
         }
     }
 
@@ -226,13 +230,17 @@ impl Timings {
 
         self.last_durs.push_front((Instant::now(), self.last_delta));
 
+        let mapd_iter = self.last_durs.iter().map(|elem| { elem.1 });
+
         self.avg_delta = {
-            self.last_durs
-                .iter()
-                .map(|elem| { elem.1 })
+            mapd_iter
+                .clone()
                 .sum::<Duration>()
                 .div_f64(self.last_durs.len() as f64)
         };
+
+        self.max_delta = mapd_iter.clone().max().unwrap_or(Duration::ZERO);
+        self.min_delta = mapd_iter.min().unwrap_or(Duration::ZERO);
     }
 }
 

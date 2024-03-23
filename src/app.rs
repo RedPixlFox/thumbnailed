@@ -58,6 +58,7 @@ impl ThumbnailedApp {
     }
 
     const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
+    const MAX_THUMBRECV_PER_FRAME: usize = 10;
 }
 
 impl Default for ThumbnailedApp {
@@ -81,7 +82,7 @@ impl Default for ThumbnailedApp {
             cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
-            timing_info: Timings::new(Duration::from_secs_f64(1.0)),
+            timing_info: Timings::new(Duration::from_secs_f64(2.5)),
             cached_thumbnails: HBHashMap::new(),
         }
     }
@@ -112,7 +113,9 @@ impl eframe::App for ThumbnailedApp {
         // receiving created thumbnails:
         if self.update_gallery {
             if let Some(thumbnailer) = &self.thumbnailer {
-                if let Ok(msg) = thumbnailer.receiver.try_recv() {
+                let mut recv_i = 0;
+
+                while let Ok(msg) = thumbnailer.receiver.try_recv() {
                     match msg {
                         ThumbnailerToApp::CreatedThumbnail(data) => {
                             self.thumbnail_paths.push(data);
@@ -134,6 +137,12 @@ impl eframe::App for ThumbnailedApp {
                             }
                         }
                     }
+
+                    if !(recv_i < Self::MAX_THUMBRECV_PER_FRAME) {
+                        break;
+                    }
+
+                    recv_i += 1;
                 }
             }
 
@@ -166,8 +175,8 @@ impl eframe::App for ThumbnailedApp {
                             Err(_) => log::debug!("failed to create cache-directory"),
                         }
 
-                        self.thumbnail_paths.clear();
                         self.cached_thumbnails.clear();
+                        self.thumbnail_paths.clear();
 
                         ui.close_menu();
                     }
@@ -233,7 +242,10 @@ impl eframe::App for ThumbnailedApp {
 
                 ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!("avg ∆T: {:.3?}", self.timing_info.avg_delta));
-
+                    ui.separator();
+                    ui.label(format!("max ∆T: {:.3?}", self.timing_info.max_delta));
+                    ui.separator();
+                    ui.label(format!("min ∆T: {:.3?}", self.timing_info.min_delta));
                     ui.separator();
                 })
             })
@@ -296,7 +308,7 @@ impl eframe::App for ThumbnailedApp {
                                             )
                                         }
                                         Err(err) => {
-                                            log::warn!("failed to read/decode thumbnail {err}");
+                                            log::warn!("failed to read/decode thumbnail ({err})");
                                             None
                                         }
                                     }
@@ -391,12 +403,21 @@ impl eframe::App for ThumbnailedApp {
                             egui::Slider
                                 ::new(&mut self.load_dialouge_data.thread_count, 1..=slider_max)
                                 .text("threads")
-                        )
+                        ).on_hover_text("please do not use the maximum of threads")
                     });
 
                     ui.vertical(|ui| {
                         ui.label("path to root directory:");
                         ui.text_edit_singleline(&mut self.load_dialouge_data.path);
+                    });
+
+                    ui.vertical(|ui| {
+                        ui.label("thumbnail size");
+                        ui.add(
+                            egui::DragValue
+                                ::new(&mut self.load_dialouge_data.max_x)
+                                .clamp_range(32..=256)
+                        );
                     });
 
                     ui.horizontal(|ui| {

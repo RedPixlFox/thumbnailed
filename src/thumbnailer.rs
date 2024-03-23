@@ -505,6 +505,14 @@ pub fn process_order(
     while let Ok(timing_data) = timing_rx.recv() {
         log::debug!("[{thread_name}]: {}", timing_data.to_string());
     }
+
+    match thumb_data_tx.send(ThumbnailerToApp::Status(ThumbnailerStatus::Finished)) {
+        Ok(_) => (),
+        Err(err) =>
+            log::warn!(
+                "[{thread_name}]: failed to send status \"Finished\" on channel to render-thread ({err})"
+            ),
+    }
 }
 
 pub fn spawn_thumbnailer_thread() -> Result<SpawnedThumbnailer, Box<dyn Error>> {
