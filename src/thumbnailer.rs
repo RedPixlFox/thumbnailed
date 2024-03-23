@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    ffi::OsStr,
     fs::{ self, DirEntry },
     path::Path,
     sync::mpsc::Sender,
