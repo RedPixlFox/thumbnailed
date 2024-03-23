@@ -423,6 +423,12 @@ impl eframe::App for ThumbnailedApp {
                                     ::new(&mut self.load_dialouge_data.max_x)
                                     .clamp_range(32..=256)
                             );
+                            ui.label("max-y: ");
+                            ui.add(
+                                egui::DragValue
+                                    ::new(&mut self.load_dialouge_data.max_y)
+                                    .clamp_range(32..=256)
+                            );
                         });
                     });
 
