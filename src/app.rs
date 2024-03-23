@@ -421,16 +421,19 @@ impl eframe::App for ThumbnailedApp {
                             ui.add(
                                 egui::DragValue
                                     ::new(&mut self.load_dialouge_data.max_x)
-                                    .clamp_range(32..=256)
+                                    .clamp_range(16..=512)
                             );
+                            ui.spacing();
                             ui.label("max-y: ");
                             ui.add(
                                 egui::DragValue
                                     ::new(&mut self.load_dialouge_data.max_y)
-                                    .clamp_range(32..=256)
+                                    .clamp_range(16..=512)
                             );
                         });
                     });
+
+                    ui.separator();
 
                     ui.horizontal(|ui| {
                         if ui.button("Cancel").clicked() {

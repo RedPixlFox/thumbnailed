@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     fs::{ self, DirEntry },
+    panic,
     path::Path,
     sync::mpsc::Sender,
     thread::JoinHandle,
@@ -144,10 +145,17 @@ pub fn generate_thumbnail_from_image(
     path: PathBuf,
     max_x: u32,
     max_y: u32
-) -> Result<image::DynamicImage, Box<dyn Error>> {
+) -> Result<image::DynamicImage, MyErrs> {
     let reader = image::io::Reader::open(&path)?;
 
-    let dyn_image = reader.decode()?;
+    let dyn_image = match
+        panic::catch_unwind(|| -> image::ImageResult<image::DynamicImage> { reader.decode() })
+    {
+        Ok(ok) => ok?,
+        Err(_) => {
+            return Err(MyErrs::from_str(""));
+        }
+    };
     let mut thumbnail = dyn_image.thumbnail(max_x, max_y);
 
     thumbnail = match thumbnail.color() {
@@ -168,7 +176,7 @@ pub fn write_thumbnail(
     thumbs_dir: PathBuf,
     max_x: u32,
     max_y: u32
-) -> Result<PathBuf, Box<dyn Error>> {
+) -> Result<PathBuf, MyErrs> {
     let thumbnail = generate_thumbnail_from_image(path.clone(), max_x, max_y)?;
     let img_name: String = {
         if let Some(name) = path.file_name() {
@@ -423,17 +431,20 @@ pub fn process_order(
                                 }
                             }
 
-                            if
-                                let Some(tx) = file_senders.get(
-                                    iter_count % order.thread_count.get()
-                                )
-                            {
+                            let current_sender = iter_count % file_senders.len();
+
+                            if let Some(tx) = file_senders.get(current_sender) {
                                 match tx.send(path) {
                                     Ok(_) => (),
-                                    Err(err) =>
+                                    Err(err) => {
                                         log::warn!(
-                                            "[{thread_name}]: failed to send path on channel ({err})"
-                                        ),
+                                            "[{thread_name}]: failed to send path on channel ({err}) -> channel will no longer be used :("
+                                        );
+                                        file_senders.remove(current_sender);
+                                        if let Some(sender_0) = file_senders.get(0) {
+                                            let _ = sender_0.send(err.0);
+                                        }
+                                    }
                                 };
                             } else {
                                 log::warn!(
