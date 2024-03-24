@@ -203,7 +203,7 @@ pub fn process_order(
     order_id: usize
 ) {
     let thread_name = String::from(
-        thread::current().name().unwrap_or("thumbnailer-thread_{order_id}")
+        thread::current().name().unwrap_or(&format!("thumbnailer-thread_{order_id}"))
     );
     log::debug!("[{thread_name}]: spawned");
 
