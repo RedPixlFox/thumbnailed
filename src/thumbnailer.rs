@@ -9,7 +9,6 @@ use std::{
 
 use crate::*;
 
-// please change this dirty code xD
 pub enum TimingData {
     SingleTime {
         name: String,
@@ -79,26 +78,10 @@ impl DirEntryData for DirEntry {
     }
 }
 
-// UNUSED
-// pub trait FileExtension {
-//     fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool;
-// }
-
-// impl<P: AsRef<Path>> FileExtension for P {
-//     fn has_extension<S: AsRef<str>>(&self, extensions: &[S]) -> bool {
-//         if let Some(ref extension) = self.as_ref().extension().and_then(OsStr::to_str) {
-//             return extensions.iter().any(|x| x.as_ref().eq_ignore_ascii_case(extension));
-//         }
-
-//         false
-//     }
-// }
-
-#[allow(clippy::panic_in_result_fn)]
 pub fn search_and_send<P>(path: P, sender: mpsc::Sender<PathBuf>) -> Result<(), Box<dyn Error>>
     where P: AsRef<Path>
 {
-    let mut dirs_to_scan: VecDeque<PathBuf> = fs
+    let mut dirs_to_scan: VecDeque<PathBuf> = fs // Vec or VecDeque?
         ::read_dir(&path)?
         .into_iter()
         .filter_map(|val| {
@@ -141,7 +124,6 @@ pub fn search_and_send<P>(path: P, sender: mpsc::Sender<PathBuf>) -> Result<(), 
     Ok(())
 }
 
-#[allow(clippy::panic_in_result_fn)]
 pub fn generate_thumbnail_from_image(
     path: PathBuf,
     max_x: u32,
