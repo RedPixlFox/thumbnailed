@@ -4,13 +4,10 @@ mod thumbnailer;
 use std::{
     collections::VecDeque,
     error::Error,
-    fmt::{ write, Display },
     fs,
     num::NonZeroUsize,
     os::windows::fs::MetadataExt,
     path::{ Path, PathBuf },
-    sync::mpsc,
-    thread,
     time::{ Duration, Instant },
 };
 
@@ -255,34 +252,36 @@ impl LoadFromPath for image::DynamicImage {
     }
 }
 
-pub enum MyErrs {
-    DynErr(Box<dyn Error>),
-    String(String),
-}
+// REMOVED (UNUSED)
 
-impl MyErrs {
-    fn from_str(value: &str) -> Self {
-        Self::String(String::from(value))
-    }
-}
+// pub enum MyErrs {
+//     DynErr(Box<dyn Error>),
+//     String(String),
+// }
 
-impl<T> From<T> for MyErrs where T: Into<Box<dyn Error>> {
-    fn from(value: T) -> Self {
-        Self::DynErr(value.into())
-    }
-}
-
-// impl From<Box<(dyn StdError + 'static)>> for MyErrs {
-//     fn from(value: Box<(dyn StdError + 'static)>) -> Self {
-//         todo!()
+// impl MyErrs {
+//     fn from_str(value: &str) -> Self {
+//         Self::String(String::from(value))
 //     }
 // }
 
-impl Display for MyErrs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MyErrs::DynErr(err) => write(f, format_args!("{err}")),
-            MyErrs::String(err_str) => write(f, format_args!("{err_str}")),
-        }
-    }
-}
+// impl<T> From<T> for MyErrs where T: Into<Box<dyn Error>> {
+//     fn from(value: T) -> Self {
+//         Self::DynErr(value.into())
+//     }
+// }
+
+// // impl From<Box<(dyn StdError + 'static)>> for MyErrs {
+// //     fn from(value: Box<(dyn StdError + 'static)>) -> Self {
+// //         todo!()
+// //     }
+// // }
+
+// impl Display for MyErrs {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             MyErrs::DynErr(err) => write(f, format_args!("{err}")),
+//             MyErrs::String(err_str) => write(f, format_args!("{err_str}")),
+//         }
+//     }
+// }

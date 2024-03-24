@@ -1,10 +1,9 @@
 use std::{
     collections::VecDeque,
     fs::{ self, DirEntry },
-    panic,
     path::Path,
-    sync::mpsc::Sender,
-    thread::JoinHandle,
+    sync::mpsc::{ self, Sender },
+    thread::{ self, JoinHandle },
     time::{ Duration, Instant },
 };
 
@@ -147,40 +146,12 @@ pub fn generate_thumbnail_from_image(
     path: PathBuf,
     max_x: u32,
     max_y: u32
-) -> Result<image::DynamicImage, MyErrs> {
-    let reader = match panic::catch_unwind(|| image::io::Reader::open(&path)) {
-        Ok(ok) => ok?,
-        Err(_) => {
-            return Err(MyErrs::from_str("OpenError"));
-        }
-    };
+) -> Result<image::RgbaImage, Box<dyn Error>> {
+    let reader = image::io::Reader::open(&path)?;
+    let dyn_image = reader.decode()?;
+    let thumbnail = dyn_image.thumbnail(max_x, max_y);
 
-    let dyn_image = match
-        panic::catch_unwind(|| -> image::ImageResult<image::DynamicImage> { reader.decode() })
-    {
-        Ok(ok) => ok?,
-        Err(_) => {
-            return Err(MyErrs::from_str("DecodeError"));
-        }
-    };
-    let mut thumbnail = match panic::catch_unwind(|| dyn_image.thumbnail(max_x, max_y)) {
-        Ok(ok) => ok,
-        Err(_) => {
-            return Err(MyErrs::from_str("ThumbnailCreationError"));
-        }
-    };
-
-    thumbnail = match thumbnail.color() {
-        image::ColorType::L16 => image::DynamicImage::ImageLuma8(thumbnail.into_luma8()),
-        image::ColorType::La16 => image::DynamicImage::ImageLumaA8(thumbnail.into_luma_alpha8()),
-        image::ColorType::Rgb16 => image::DynamicImage::ImageRgb8(thumbnail.into_rgb8()),
-        image::ColorType::Rgb32F => image::DynamicImage::ImageRgb8(thumbnail.into_rgb8()),
-        image::ColorType::Rgba16 => image::DynamicImage::ImageRgba8(thumbnail.into_rgba8()),
-        image::ColorType::Rgba32F => image::DynamicImage::ImageRgba8(thumbnail.into_rgba8()),
-        _ => thumbnail,
-    };
-
-    Ok(thumbnail)
+    Ok(thumbnail.into_rgba8())
 }
 
 pub fn write_thumbnail(
@@ -188,7 +159,7 @@ pub fn write_thumbnail(
     thumbs_dir: PathBuf,
     max_x: u32,
     max_y: u32
-) -> Result<PathBuf, MyErrs> {
+) -> Result<PathBuf, Box<dyn Error>> {
     let thumbnail = generate_thumbnail_from_image(path.clone(), max_x, max_y)?;
     let img_name: String = {
         if let Some(name) = path.file_name() {
@@ -591,12 +562,7 @@ pub fn spawn_thumbnailer_thread() -> Result<SpawnedThumbnailer, Box<dyn Error>> 
             }
         }
 
-        // for handle in handles {
-        //     match handle.join() {
-        //         Ok(_) => (),
-        //         Err(_) => log::debug!("[{thread_name}]: failed to join thread"),
-        //     };
-        // }
+        // we dont join the threads
     })?;
 
     return Ok(SpawnedThumbnailer::new(handle, client_tx, client_rx));
