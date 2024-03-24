@@ -375,7 +375,7 @@ impl eframe::App for ThumbnailedApp {
                             egui::Slider
                                 ::new(&mut self.load_dialouge_data.thread_count, 1..=slider_max)
                                 .text("threads")
-                        ).on_hover_text("please do not use the maximum of threads")
+                        ).on_hover_text("using the maximum of threads may cause lags")
                     });
 
                     ui.vertical(|ui| {
