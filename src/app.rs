@@ -38,25 +38,6 @@ pub struct ThumbnailedApp {
 }
 
 impl ThumbnailedApp {
-    // pub fn update_gallery_cache_size(&mut self) {
-    //     let mut size = 0;
-    //
-    //     for thumbnail_data in &self.thumbnails {
-    //         match fs::metadata(&thumbnail_data.thumbnail) {
-    //             Ok(metadata) => {
-    //                 size += metadata.file_size();
-    //             }
-    //             Err(_) => (),
-    //         }
-    //     }
-    //
-    //     self.gallery_cache_size = StorageSize::new(size);
-    // }
-
-    pub fn update_cache_size(&mut self) {
-        self.cache_size = StorageSize::from_dir(self.thumbnail_path.clone()).unwrap_or_default();
-    }
-
     const CACHE_SIZE_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
     const MAX_THUMBRECV_PER_FRAME: usize = 10;
 }
@@ -75,10 +56,7 @@ impl Default for ThumbnailedApp {
             },
             show_load_dialouge: false,
             thumbnailer: None,
-            // allowed_to_close: false,
-            // show_close_dialouge: false,
             update_gallery: true,
-            // gallery_cache_size: StorageSize::new(0),
             cache_size: StorageSize::new(0),
             last_cache_size_update: Instant::now(),
             show_path_on_hover: true,
@@ -263,24 +241,6 @@ impl eframe::App for ThumbnailedApp {
                                 None => (128, 128),
                             };
 
-                            // OLD VARIANT:
-                            // let thumb_resp = ui.add_sized(
-                            //     [max_x as f32, max_y as f32],
-                            //     egui::Image
-                            //         ::new(
-                            //             egui::ImageSource::Uri(
-                            //                 std::borrow::Cow::Borrowed(
-                            //                     &format!("file://{thumb_path_str}")
-                            //                 )
-                            //             )
-                            //         )
-                            //         .sense(egui::Sense::click())
-                            //         .max_size(egui::Vec2 {
-                            //             x: max_x as f32,
-                            //             y: max_y as f32,
-                            //         })
-                            // );
-
                             if self.cached_thumbnails.get(&thumbnail_paths.thumbnail).is_none() {
                                 let texture: Option<egui::TextureHandle> = {
                                     match
@@ -337,13 +297,13 @@ impl eframe::App for ThumbnailedApp {
                                                     texture_handle.size_vec2(),
                                                 ))
                                                 .sense(egui::Sense::click())
-                                            // .max_size(egui::Vec2 {
-                                            //     x: max_x as f32,
-                                            //     y: max_y as f32,
-                                            // })
                                         );
 
-                                        if thumb_resp.clicked() {
+                                        if
+                                            thumb_resp.double_clicked_by(
+                                                egui::PointerButton::Primary
+                                            )
+                                        {
                                             if
                                                 let Some(orig_path_str) =
                                                     thumbnail_paths.original.to_str()
@@ -357,6 +317,15 @@ impl eframe::App for ThumbnailedApp {
                                                         .unwrap();
                                                 }
                                             }
+                                        }
+
+                                        if thumb_resp.clicked_by(egui::PointerButton::Secondary) {
+                                            ctx.copy_text(
+                                                String::from(
+                                                    thumbnail_paths.original.to_str().unwrap_or("")
+                                                )
+                                            );
+                                            // add message to some message vector -> displayed in BottomPanel
                                         }
 
                                         if self.show_path_on_hover {

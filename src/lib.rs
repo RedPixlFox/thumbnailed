@@ -104,6 +104,8 @@ pub struct StorageSize {
 }
 
 impl StorageSize {
+    pub const ZERO: Self = Self { bytes: 0 };
+
     pub fn new(bytes: u64) -> Self {
         Self { bytes }
     }
@@ -253,30 +255,30 @@ impl LoadFromPath for image::DynamicImage {
 }
 
 // REMOVED (UNUSED)
-
+//
 // pub enum MyErrs {
 //     DynErr(Box<dyn Error>),
 //     String(String),
 // }
-
+//
 // impl MyErrs {
 //     fn from_str(value: &str) -> Self {
 //         Self::String(String::from(value))
 //     }
 // }
-
+//
 // impl<T> From<T> for MyErrs where T: Into<Box<dyn Error>> {
 //     fn from(value: T) -> Self {
 //         Self::DynErr(value.into())
 //     }
 // }
-
+//
 // // impl From<Box<(dyn StdError + 'static)>> for MyErrs {
 // //     fn from(value: Box<(dyn StdError + 'static)>) -> Self {
 // //         todo!()
 // //     }
 // // }
-
+//
 // impl Display for MyErrs {
 //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 //         match self {
